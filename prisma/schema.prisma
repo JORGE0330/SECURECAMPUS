@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Rol {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id       Int      @id @default(autoincrement())
+  nombre   String
+  correo   String   @unique
+  password String
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  rolId Int
+  rol   Rol @relation(fields: [rolId], references: [id])
+
+  gruposComoProfesor Grupo[]           @relation("ProfesorGrupo")
+  gruposComoAlumno   GrupoEstudiante[]
+  calificaciones     Calificacion[]
+  documentos         Documento[]
+  solicitudes        Solicitud[]
+}
+
+model Grupo {
+  id      Int    @id @default(autoincrement())
+  nombre  String
+  materia String
+
+  profesorId Int
+  profesor   Usuario @relation("ProfesorGrupo", fields: [profesorId], references: [id])
+
+  estudiantes    GrupoEstudiante[]
+  calificaciones Calificacion[]
+}
+
+model GrupoEstudiante {
+  id           Int @id @default(autoincrement())
+  grupoId      Int
+  estudianteId Int
+
+  grupo      Grupo   @relation(fields: [grupoId], references: [id])
+  estudiante Usuario @relation(fields: [estudianteId], references: [id])
+
+  @@unique([grupoId, estudianteId])
+}
+
+model Calificacion {
+  id    Int   @id @default(autoincrement())
+  valor Float
+
+  grupoId      Int
+  estudianteId Int
+
+  grupo      Grupo   @relation(fields: [grupoId], references: [id])
+  estudiante Usuario @relation(fields: [estudianteId], references: [id])
+
+  creadoEn DateTime @default(now())
+
+  @@unique([grupoId, estudianteId])
+}
+
+model Documento {
+  id      Int     @id @default(autoincrement())
+  nombre  String
+  archivo String
+  tipo    String?
+
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  creadoEn DateTime @default(now())
+}
+
+model Solicitud {
+  id          Int     @id @default(autoincrement())
+  tipo        String
+  descripcion String?
+  estado      String  @default("Pendiente")
+
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  creadoEn DateTime @default(now())
+}
