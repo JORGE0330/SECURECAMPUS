@@ -104,7 +104,7 @@ export default function PerfilJefeCarrera() {
           </span>
         </div>
 
-
+    
         <div>
           <p className="text-sm text-gray-500">
             Estado

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utilidades/prisma";
-
+import { registrarAuditoria } from "@/utilidades/auditoria";
 
 // =====================================================
 // OBTENER ESTUDIANTES
@@ -40,7 +40,6 @@ export async function GET() {
     });
 
     return NextResponse.json(estudiantes);
-
   } catch (error) {
     console.error(error);
 
@@ -55,7 +54,6 @@ export async function GET() {
   }
 }
 
-
 // =====================================================
 // ASIGNAR ESTUDIANTE A UN GRUPO
 // =====================================================
@@ -63,6 +61,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const datos = await request.json();
+
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
 
     const estudianteId = Number(datos.estudianteId);
     const grupoId = Number(datos.grupoId);
@@ -78,8 +78,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // COMPROBAR QUE EL ESTUDIANTE EXISTE
+    // =====================================================
 
-    // Comprobar que el estudiante existe
     const estudiante = await prisma.usuario.findFirst({
       where: {
         id: estudianteId,
@@ -101,8 +103,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // COMPROBAR QUE EL GRUPO EXISTE
+    // =====================================================
 
-    // Comprobar que el grupo existe
     const grupo = await prisma.grupo.findUnique({
       where: {
         id: grupoId,
@@ -120,8 +124,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // COMPROBAR SI YA ESTÁ INSCRITO
+    // =====================================================
 
-    // Comprobar si ya está inscrito
     const asignacionExistente =
       await prisma.grupoEstudiante.findUnique({
         where: {
@@ -143,15 +149,35 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // CREAR RELACIÓN ESTUDIANTE - GRUPO
+    // =====================================================
 
-    // Crear relación estudiante-grupo
-    const asignacion =
-      await prisma.grupoEstudiante.create({
-        data: {
-          grupoId,
-          estudianteId,
-        },
-      });
+    const asignacion = await prisma.grupoEstudiante.create({
+      data: {
+        grupoId,
+        estudianteId,
+      },
+    });
+
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
+
+    await registrarAuditoria({
+      usuarioId: actorId,
+      accion: "ASIGNAR_ESTUDIANTE",
+      entidad: "GrupoEstudiante",
+      entidadId: asignacion.id,
+
+      detalle:
+        `Asignó al estudiante ${estudiante.nombre} ` +
+        `al grupo ${grupo.nombre} de ${grupo.materia}`,
+    });
+
+    // =====================================================
+    // RESPUESTA
+    // =====================================================
 
     return NextResponse.json(
       {
@@ -162,7 +188,6 @@ export async function POST(request: Request) {
         status: 201,
       }
     );
-
   } catch (error) {
     console.error(error);
 

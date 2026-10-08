@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utilidades/prisma";
-
+import { registrarAuditoria } from "@/utilidades/auditoria";
 
 // =====================================================
 // OBTENER TODOS LOS GRUPOS
@@ -36,7 +36,6 @@ export async function GET() {
     });
 
     return NextResponse.json(grupos);
-
   } catch (error) {
     console.error(error);
 
@@ -51,7 +50,6 @@ export async function GET() {
   }
 }
 
-
 // =====================================================
 // CREAR UN NUEVO GRUPO
 // =====================================================
@@ -59,6 +57,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const datos = await request.json();
+
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
 
     const nombre = datos.nombre?.trim();
     const materia = datos.materia?.trim();
@@ -74,6 +74,10 @@ export async function POST(request: Request) {
         }
       );
     }
+
+    // =====================================================
+    // VALIDAR PROFESOR
+    // =====================================================
 
     const profesor = await prisma.usuario.findFirst({
       where: {
@@ -113,6 +117,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // CREAR GRUPO
+    // =====================================================
+
     const grupo = await prisma.grupo.create({
       data: {
         nombre,
@@ -135,6 +143,25 @@ export async function POST(request: Request) {
       },
     });
 
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
+
+    await registrarAuditoria({
+      usuarioId: actorId,
+      accion: "CREAR_GRUPO",
+      entidad: "Grupo",
+      entidadId: grupo.id,
+
+      detalle:
+        `Creó el grupo ${grupo.nombre} de ${grupo.materia} ` +
+        `y asignó al profesor ${grupo.profesor.nombre}`,
+    });
+
+    // =====================================================
+    // RESPUESTA
+    // =====================================================
+
     return NextResponse.json(
       {
         mensaje: "Grupo creado correctamente",
@@ -144,7 +171,6 @@ export async function POST(request: Request) {
         status: 201,
       }
     );
-
   } catch (error) {
     console.error(error);
 

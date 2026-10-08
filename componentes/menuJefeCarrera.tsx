@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
+import BotonCerrarSesion from "./BotonCerrarSesion";
 const opciones = [
   {
     nombre: "Inicio",
@@ -30,7 +30,7 @@ export default function MenuJefeCarrera() {
   const rutaActual = usePathname();
 
   return (
-    <aside className="w-64 min-h-screen bg-slate-900 text-white p-6">
+    <aside className="w-64 min-h-screen bg-slate-900 text-white p-6 flex flex-col">
 
       <h1 className="text-2xl font-bold mb-4">
         SecureCampus
@@ -62,7 +62,9 @@ export default function MenuJefeCarrera() {
         })}
 
       </nav>
-
+      <div className="mt-auto">
+        <BotonCerrarSesion />
+      </div>
     </aside>
   );
 }

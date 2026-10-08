@@ -26,6 +26,29 @@ type Grupo = {
   };
 };
 
+// =====================================================
+// OBTENER ID DEL JEFE DE CARRERA CONECTADO
+// =====================================================
+
+function obtenerJefeCarreraId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const usuarioGuardado = localStorage.getItem("usuario");
+
+  if (!usuarioGuardado) {
+    return null;
+  }
+
+  try {
+    const usuario = JSON.parse(usuarioGuardado);
+    return usuario.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function GruposJefeCarrera() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [profesores, setProfesores] = useState<Profesor[]>([]);
@@ -39,6 +62,10 @@ export default function GruposJefeCarrera() {
 
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
+
+  // =====================================================
+  // CARGAR GRUPOS
+  // =====================================================
 
   async function cargarGrupos() {
     try {
@@ -57,7 +84,13 @@ export default function GruposJefeCarrera() {
     }
   }
 
+  // =====================================================
+  // CARGA INICIAL
+  // =====================================================
+
   useEffect(() => {
+    let cancelado = false;
+
     fetch("/api/grupos-jefe")
       .then(async (respuesta) => {
         const datos = await respuesta.json();
@@ -69,10 +102,14 @@ export default function GruposJefeCarrera() {
         return datos;
       })
       .then((datos) => {
-        setGrupos(datos);
+        if (!cancelado) {
+          setGrupos(datos);
+        }
       })
       .catch((error) => {
-        setError(error.message);
+        if (!cancelado) {
+          setError(error.message);
+        }
       });
 
     fetch("/api/profesores")
@@ -88,12 +125,24 @@ export default function GruposJefeCarrera() {
         return datos;
       })
       .then((datos) => {
-        setProfesores(datos);
+        if (!cancelado) {
+          setProfesores(datos);
+        }
       })
       .catch((error) => {
-        setError(error.message);
+        if (!cancelado) {
+          setError(error.message);
+        }
       });
+
+    return () => {
+      cancelado = true;
+    };
   }, []);
+
+  // =====================================================
+  // CREAR GRUPO
+  // =====================================================
 
   async function crearGrupo(
     evento: React.FormEvent<HTMLFormElement>
@@ -102,6 +151,8 @@ export default function GruposJefeCarrera() {
 
     setMensaje("");
     setError("");
+
+    const actorId = obtenerJefeCarreraId();
 
     try {
       const respuesta = await fetch("/api/grupos-jefe", {
@@ -115,6 +166,7 @@ export default function GruposJefeCarrera() {
           nombre,
           materia,
           profesorId,
+          actorId,
         }),
       });
 
@@ -134,7 +186,6 @@ export default function GruposJefeCarrera() {
       setMensaje("Grupo creado correctamente");
 
       await cargarGrupos();
-
     } catch {
       setError("No se pudo crear el grupo");
     }
@@ -146,9 +197,11 @@ export default function GruposJefeCarrera() {
 
   return (
     <main className="p-10">
+      {/* =================================================
+          ENCABEZADO
+      ================================================= */}
 
       <header className="mb-8 flex items-center justify-between">
-
         <div>
           <p className="text-gray-500">
             Portal del jefe de carrera
@@ -172,9 +225,11 @@ export default function GruposJefeCarrera() {
         >
           + Crear grupo
         </button>
-
       </header>
 
+      {/* =================================================
+          MENSAJES
+      ================================================= */}
 
       {mensaje && (
         <div className="mb-6 bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg">
@@ -182,18 +237,18 @@ export default function GruposJefeCarrera() {
         </div>
       )}
 
-
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
           {error}
         </div>
       )}
 
+      {/* =================================================
+          FORMULARIO
+      ================================================= */}
 
       {mostrarFormulario && (
-
         <section className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-8">
-
           <h2 className="text-xl font-bold text-gray-900 mb-6">
             Crear nuevo grupo
           </h2>
@@ -202,9 +257,9 @@ export default function GruposJefeCarrera() {
             onSubmit={crearGrupo}
             className="grid grid-cols-1 md:grid-cols-3 gap-5"
           >
+            {/* NOMBRE */}
 
             <div>
-
               <label className="block text-gray-700 mb-2">
                 Nombre del grupo
               </label>
@@ -219,12 +274,11 @@ export default function GruposJefeCarrera() {
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900"
                 required
               />
-
             </div>
 
+            {/* MATERIA */}
 
             <div>
-
               <label className="block text-gray-700 mb-2">
                 Materia
               </label>
@@ -239,12 +293,11 @@ export default function GruposJefeCarrera() {
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900"
                 required
               />
-
             </div>
 
+            {/* PROFESOR */}
 
             <div>
-
               <label className="block text-gray-700 mb-2">
                 Profesor
               </label>
@@ -257,29 +310,24 @@ export default function GruposJefeCarrera() {
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 bg-white"
                 required
               >
-
                 <option value="">
                   Selecciona un profesor
                 </option>
 
                 {profesoresActivos.map((profesor) => (
-
                   <option
                     key={profesor.id}
                     value={profesor.id}
                   >
                     {profesor.nombre}
                   </option>
-
                 ))}
-
               </select>
-
             </div>
 
+            {/* BOTONES */}
 
             <div className="md:col-span-3 flex gap-3">
-
               <button
                 type="submit"
                 className="bg-blue-700 text-white px-5 py-3 rounded-lg hover:bg-blue-800"
@@ -296,25 +344,21 @@ export default function GruposJefeCarrera() {
               >
                 Cancelar
               </button>
-
             </div>
-
           </form>
-
         </section>
-
       )}
 
+      {/* =================================================
+          GRUPOS
+      ================================================= */}
 
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
         {grupos.map((grupo) => (
-
           <article
             key={grupo.id}
             className="bg-white border border-gray-200 rounded-xl shadow-sm p-6"
           >
-
             <p className="text-blue-700 font-semibold">
               {grupo.nombre}
             </p>
@@ -323,9 +367,7 @@ export default function GruposJefeCarrera() {
               {grupo.materia}
             </h2>
 
-
             <div className="mt-5">
-
               <p className="text-sm text-gray-500">
                 Profesor asignado
               </p>
@@ -333,12 +375,9 @@ export default function GruposJefeCarrera() {
               <p className="font-medium text-gray-900">
                 {grupo.profesor.nombre}
               </p>
-
             </div>
 
-
             <div className="mt-4">
-
               <p className="text-sm text-gray-500">
                 Estudiantes inscritos
               </p>
@@ -346,24 +385,16 @@ export default function GruposJefeCarrera() {
               <p className="text-2xl font-bold text-gray-900">
                 {grupo._count.estudiantes}
               </p>
-
             </div>
-
           </article>
-
         ))}
-
       </section>
 
-
       {grupos.length === 0 && (
-
         <p className="text-gray-500">
           No hay grupos registrados.
         </p>
-
       )}
-
     </main>
   );
 }

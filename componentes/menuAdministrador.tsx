@@ -2,43 +2,50 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import BotonCerrarSesion from "@/componentes/BotonCerrarSesion";
+import BotonCerrarSesion from "./BotonCerrarSesion";
 
 const opciones = [
   {
     nombre: "Inicio",
-    ruta: "/profesor",
+    ruta: "/administrador",
   },
   {
     nombre: "Mi perfil",
-    ruta: "/profesor/perfil",
+    ruta: "/administrador/perfil",
   },
   {
-    nombre: "Mis grupos",
-    ruta: "/profesor/grupos",
+    nombre: "Usuarios",
+    ruta: "/administrador/usuarios",
   },
   {
-    nombre: "Calificaciones",
-    ruta: "/profesor/calificaciones",
+    nombre: "Roles y permisos",
+    ruta: "/administrador/roles",
+  },
+  {
+    nombre: "Auditoría",
+    ruta: "/administrador/auditoria",
   },
 ];
 
-export default function MenuProfesor() {
+export default function MenuAdministrador() {
   const rutaActual = usePathname();
 
   return (
     <aside className="w-64 min-h-screen bg-slate-900 text-white p-6 flex flex-col">
-      <h1 className="text-2xl font-bold mb-10">
+
+      <h1 className="text-2xl font-bold mb-4">
         SecureCampus
       </h1>
 
-      <p className="text-sm text-gray-400 mb-6">
-        Portal del profesor
+      <p className="text-sm text-gray-400 mb-8">
+        Administrador
       </p>
 
       <nav className="space-y-3">
+
         {opciones.map((opcion) => {
-          const seleccionada = rutaActual === opcion.ruta;
+          const seleccionada =
+            rutaActual === opcion.ruta;
 
           return (
             <Link
@@ -54,10 +61,13 @@ export default function MenuProfesor() {
             </Link>
           );
         })}
+
       </nav>
-      <div className="mt-auto">
+
+      <div className="mt-auto pt-6">
         <BotonCerrarSesion />
       </div>
+
     </aside>
   );
 }

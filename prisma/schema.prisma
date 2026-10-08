@@ -20,6 +20,7 @@ model Usuario {
   password String
   activo   Boolean  @default(true)
   creadoEn DateTime @default(now())
+  avatar   String?
 
   rolId Int
   rol   Rol @relation(fields: [rolId], references: [id])
@@ -29,6 +30,7 @@ model Usuario {
   calificaciones     Calificacion[]
   documentos         Documento[]
   solicitudes        Solicitud[]
+  auditorias         Auditoria[]
 }
 
 model Grupo {
@@ -91,4 +93,16 @@ model Solicitud {
   usuario   Usuario @relation(fields: [usuarioId], references: [id])
 
   creadoEn DateTime @default(now())
+}
+
+model Auditoria {
+  id        Int      @id @default(autoincrement())
+  accion    String
+  detalle   String?
+  entidad   String?
+  entidadId Int?
+  creadoEn  DateTime @default(now())
+
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
 }

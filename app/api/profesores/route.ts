@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utilidades/prisma";
-
+import { registrarAuditoria } from "@/utilidades/auditoria";
 
 // =====================================================
 // OBTENER PROFESORES
@@ -21,6 +21,13 @@ export async function GET() {
         correo: true,
         activo: true,
         creadoEn: true,
+
+        rol: {
+          select: {
+            id: true,
+            nombre: true,
+          },
+        },
       },
 
       orderBy: {
@@ -29,7 +36,6 @@ export async function GET() {
     });
 
     return NextResponse.json(profesores);
-
   } catch (error) {
     console.error(error);
 
@@ -44,17 +50,18 @@ export async function GET() {
   }
 }
 
-
 // =====================================================
-// REGISTRAR PROFESOR
+// CREAR PROFESOR
 // =====================================================
 
 export async function POST(request: Request) {
   try {
     const datos = await request.json();
 
-    const nombre = datos.nombre;
-    const correo = datos.correo;
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
+
+    const nombre = datos.nombre?.trim();
+    const correo = datos.correo?.trim();
     const password = datos.password;
 
     if (!nombre || !correo || !password) {
@@ -68,12 +75,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const usuarioExistente =
-      await prisma.usuario.findUnique({
-        where: {
-          correo: correo,
-        },
-      });
+    // Comprobar si ya existe el correo
+
+    const usuarioExistente = await prisma.usuario.findUnique({
+      where: {
+        correo,
+      },
+    });
 
     if (usuarioExistente) {
       return NextResponse.json(
@@ -86,12 +94,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const rolProfesor =
-      await prisma.rol.findUnique({
-        where: {
-          nombre: "PROFESOR",
-        },
-      });
+    // Obtener rol PROFESOR
+
+    const rolProfesor = await prisma.rol.findUnique({
+      where: {
+        nombre: "PROFESOR",
+      },
+    });
 
     if (!rolProfesor) {
       return NextResponse.json(
@@ -99,10 +108,12 @@ export async function POST(request: Request) {
           mensaje: "No se encontró el rol PROFESOR",
         },
         {
-          status: 500,
+          status: 404,
         }
       );
     }
+
+    // Crear profesor
 
     const profesor = await prisma.usuario.create({
       data: {
@@ -118,25 +129,43 @@ export async function POST(request: Request) {
         nombre: true,
         correo: true,
         activo: true,
+
+        rol: {
+          select: {
+            id: true,
+            nombre: true,
+          },
+        },
       },
+    });
+
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
+
+    await registrarAuditoria({
+      usuarioId: actorId,
+      accion: "CREAR_PROFESOR",
+      entidad: "Usuario",
+      entidadId: profesor.id,
+      detalle: `Creó al profesor ${profesor.nombre}`,
     });
 
     return NextResponse.json(
       {
-        mensaje: "Profesor registrado correctamente",
+        mensaje: "Profesor creado correctamente",
         profesor,
       },
       {
         status: 201,
       }
     );
-
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        mensaje: "Error al registrar el profesor",
+        mensaje: "Error al crear el profesor",
       },
       {
         status: 500,
@@ -145,19 +174,18 @@ export async function POST(request: Request) {
   }
 }
 
-
 // =====================================================
-// ACTIVAR / DAR DE BAJA
+// ACTIVAR / DESACTIVAR PROFESOR
 // =====================================================
 
 export async function PATCH(request: Request) {
   try {
     const datos = await request.json();
 
-    const id = Number(datos.id);
-    const activo = datos.activo;
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
+    const profesorId = Number(datos.profesorId);
 
-    if (!id) {
+    if (!profesorId) {
       return NextResponse.json(
         {
           mensaje: "Falta el ID del profesor",
@@ -168,13 +196,60 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const profesor = await prisma.usuario.update({
+    if (typeof datos.activo !== "boolean") {
+      return NextResponse.json(
+        {
+          mensaje: "El estado del profesor no es válido",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // Buscar profesor
+
+    const profesorActual = await prisma.usuario.findUnique({
       where: {
-        id: id,
+        id: profesorId,
+      },
+
+      include: {
+        rol: true,
+      },
+    });
+
+    if (!profesorActual) {
+      return NextResponse.json(
+        {
+          mensaje: "El profesor no existe",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    if (profesorActual.rol.nombre !== "PROFESOR") {
+      return NextResponse.json(
+        {
+          mensaje: "El usuario seleccionado no es profesor",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // Actualizar estado
+
+    const profesorActualizado = await prisma.usuario.update({
+      where: {
+        id: profesorId,
       },
 
       data: {
-        activo: activo,
+        activo: datos.activo,
       },
 
       select: {
@@ -185,14 +260,32 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json({
-      mensaje: activo
-        ? "Profesor activado correctamente"
-        : "Profesor dado de baja correctamente",
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
 
-      profesor,
+    await registrarAuditoria({
+      usuarioId: actorId,
+
+      accion: datos.activo
+        ? "ACTIVAR_PROFESOR"
+        : "DESACTIVAR_PROFESOR",
+
+      entidad: "Usuario",
+      entidadId: profesorActualizado.id,
+
+      detalle: datos.activo
+        ? `Activó al profesor ${profesorActualizado.nombre}`
+        : `Desactivó al profesor ${profesorActualizado.nombre}`,
     });
 
+    return NextResponse.json({
+      mensaje: datos.activo
+        ? "Profesor activado correctamente"
+        : "Profesor desactivado correctamente",
+
+      profesor: profesorActualizado,
+    });
   } catch (error) {
     console.error(error);
 

@@ -147,7 +147,7 @@ export default function CalificacionesEstudiante() {
 
               <th className="text-left p-4 text-black">
                 Grupo
-              </th>
+              </th> 
 
               <th className="text-left p-4 text-black">
                 Calificación

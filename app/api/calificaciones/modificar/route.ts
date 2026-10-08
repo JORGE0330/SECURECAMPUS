@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/utilidades/prisma";
-
+import { registrarAuditoria } from "@/utilidades/auditoria";
 
 // =====================================================
 // MODIFICAR UNA CALIFICACIÓN EXISTENTE
@@ -10,6 +10,7 @@ export async function PUT(request: Request) {
   try {
     const datos = await request.json();
 
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
     const calificacionId = Number(datos.calificacionId);
     const nuevoValor = Number(datos.valor);
 
@@ -39,22 +40,81 @@ export async function PUT(request: Request) {
       );
     }
 
-    const calificacion =
-      await prisma.calificacion.update({
-        where: {
-          id: calificacionId,
+    // =====================================================
+    // OBTENER CALIFICACIÓN ANTES DEL CAMBIO
+    // =====================================================
+
+    const calificacionAnterior = await prisma.calificacion.findUnique({
+      where: {
+        id: calificacionId,
+      },
+
+      select: {
+        id: true,
+        valor: true,
+
+        estudiante: {
+          select: {
+            id: true,
+            nombre: true,
+          },
         },
 
-        data: {
-          valor: nuevoValor,
+        grupo: {
+          select: {
+            id: true,
+            nombre: true,
+            materia: true,
+          },
         },
-      });
+      },
+    });
+
+    if (!calificacionAnterior) {
+      return NextResponse.json(
+        {
+          mensaje: "La calificación no existe",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    // =====================================================
+    // ACTUALIZAR CALIFICACIÓN
+    // =====================================================
+
+    const calificacion = await prisma.calificacion.update({
+      where: {
+        id: calificacionId,
+      },
+
+      data: {
+        valor: nuevoValor,
+      },
+    });
+
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
+
+    await registrarAuditoria({
+      usuarioId: actorId,
+      accion: "MODIFICAR_CALIFICACION",
+      entidad: "Calificacion",
+      entidadId: calificacion.id,
+
+      detalle:
+        `Modificó la calificación de ${calificacionAnterior.estudiante.nombre} ` +
+        `en ${calificacionAnterior.grupo.nombre} - ${calificacionAnterior.grupo.materia} ` +
+        `de ${calificacionAnterior.valor} a ${nuevoValor}`,
+    });
 
     return NextResponse.json({
       mensaje: "Calificación actualizada correctamente",
       calificacion,
     });
-
   } catch (error) {
     console.error(error);
 
@@ -69,7 +129,6 @@ export async function PUT(request: Request) {
   }
 }
 
-
 // =====================================================
 // CREAR UNA NUEVA CALIFICACIÓN
 // =====================================================
@@ -77,6 +136,8 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     const datos = await request.json();
+
+    const actorId = datos.actorId ? Number(datos.actorId) : null;
 
     const grupoId = Number(datos.grupoId);
     const estudianteId = Number(datos.estudianteId);
@@ -108,17 +169,37 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // VERIFICAR QUE EL ALUMNO PERTENEZCA AL GRUPO
+    // =====================================================
 
-    // Verificamos que el alumno pertenezca al grupo
-    const perteneceGrupo =
-      await prisma.grupoEstudiante.findUnique({
-        where: {
-          grupoId_estudianteId: {
-            grupoId,
-            estudianteId,
+    const perteneceGrupo = await prisma.grupoEstudiante.findUnique({
+      where: {
+        grupoId_estudianteId: {
+          grupoId,
+          estudianteId,
+        },
+      },
+
+      select: {
+        id: true,
+
+        estudiante: {
+          select: {
+            id: true,
+            nombre: true,
           },
         },
-      });
+
+        grupo: {
+          select: {
+            id: true,
+            nombre: true,
+            materia: true,
+          },
+        },
+      },
+    });
 
     if (!perteneceGrupo) {
       return NextResponse.json(
@@ -131,17 +212,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // EVITAR CALIFICACIÓN DUPLICADA
+    // =====================================================
 
-    // Evitar una calificación duplicada
-    const existente =
-      await prisma.calificacion.findUnique({
-        where: {
-          grupoId_estudianteId: {
-            grupoId,
-            estudianteId,
-          },
+    const existente = await prisma.calificacion.findUnique({
+      where: {
+        grupoId_estudianteId: {
+          grupoId,
+          estudianteId,
         },
-      });
+      },
+    });
 
     if (existente) {
       return NextResponse.json(
@@ -154,15 +236,33 @@ export async function POST(request: Request) {
       );
     }
 
+    // =====================================================
+    // CREAR CALIFICACIÓN
+    // =====================================================
 
-    const calificacion =
-      await prisma.calificacion.create({
-        data: {
-          grupoId,
-          estudianteId,
-          valor,
-        },
-      });
+    const calificacion = await prisma.calificacion.create({
+      data: {
+        grupoId,
+        estudianteId,
+        valor,
+      },
+    });
+
+    // =====================================================
+    // AUDITORÍA
+    // =====================================================
+
+    await registrarAuditoria({
+      usuarioId: actorId,
+      accion: "REGISTRAR_CALIFICACION",
+      entidad: "Calificacion",
+      entidadId: calificacion.id,
+
+      detalle:
+        `Registró la calificación ${valor} para ` +
+        `${perteneceGrupo.estudiante.nombre} en ` +
+        `${perteneceGrupo.grupo.nombre} - ${perteneceGrupo.grupo.materia}`,
+    });
 
     return NextResponse.json(
       {
@@ -173,7 +273,6 @@ export async function POST(request: Request) {
         status: 201,
       }
     );
-
   } catch (error) {
     console.error(error);
 
